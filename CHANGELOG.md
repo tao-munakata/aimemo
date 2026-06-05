@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## [v3.1.2] - 2026-06-05
+
+### 新機能
+- **Notion → Obsidian 一括移行スクリプト** (`scripts/notion-to-obsidian.js`)
+  - Notion API でページネーション対応（100件/回）
+  - 見出し・箇条書き・コード・画像・リンクを Markdown に変換
+  - frontmatter（title / date / tags / source URL）を自動付与
+  - 重複スキップ対応（再実行安全）
+  - 実績：772件検出・751件保存・エラー0件
+- **事前分類スクリプト** (`scripts/pre-classify.js`)
+  - キーワードマッチで 00_Inbox → 各フォルダへ高速振り分け
+  - 764件中507件を自動分類（20_AI: 226件 / 30_Business: 109件 / 40_Meeting: 88件 / 10_Projects: 85件）
+  - AI不要・即時完了
+
+---
+
 ## [v3.1.1] - 2026-06-05
 
 ### バグ修正
