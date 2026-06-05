@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## [v3.1.3] - 2026-06-05
+
+### 運用完了
+- Notion 751件移行・事前分類・ingest 完了（00_Inbox = 0件）
+- Vault 合計 775件で稼働開始
+- Web Clipper（Chrome拡張）設定・動作確認済み
+- Notion は今後使用しない（AIメモ窓 + Web Clipper に一本化）
+
+---
+
 ## [v3.1.2] - 2026-06-05
 
 ### 新機能
