@@ -139,7 +139,7 @@
 
     <div class="info-row">
       <span>入力チャネルB:</span>
-      <a href="https://obsidian.md/plugins?id=obsidian-web-clipper" target="_blank">Obsidian Web Clipper</a>
+      <a href="https://chromewebstore.google.com/detail/obsidian-web-clipper/cnjifjpddelmedmihgijeibhnjfabmlf" target="_blank">Obsidian Web Clipper</a>
       <span>でWebページもクリップ可能</span>
     </div>
   </div>
@@ -275,7 +275,7 @@ async function submit() {
 
 function showResult(data) {
   const el = document.getElementById('result');
-  el.style.display = '';
+  el.style.display = 'block';
   el.className = 'card ' + (data.success ? 'result-success' : 'result-error');
   let html = data.success
     ? `<p style="color:#4caf50;font-weight:600;margin-bottom:8px">✅ 保存完了</p>

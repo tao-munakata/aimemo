@@ -9,6 +9,7 @@ const http = require('http');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const VAULT_PATH = process.env.VAULT_PATH || '/vault';
+const VAULT_NAME = process.env.VAULT_NAME || path.basename(process.env.VAULT_PATH || 'obsidian');
 const LM_STUDIO_URL = process.env.LM_STUDIO_URL || 'http://host.docker.internal:1234/v1';
 const LM_STUDIO_MODEL = process.env.LM_STUDIO_MODEL || 'gemma-4-12b-it';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
@@ -146,9 +147,8 @@ app.post('/api/memo', async (req, res) => {
     const extractedTasks = extractTasksFromText(formattedContent);
     const { filePath, fileName } = saveToVault(folder, finalTitle, formattedContent);
 
-    const vaultName = path.basename(VAULT_PATH);
     const obsidianFile = encodeURIComponent(path.join(folder, fileName).replace('.md', ''));
-    const obsidianUrl = `obsidian://open?vault=${encodeURIComponent(vaultName)}&file=${obsidianFile}`;
+    const obsidianUrl = `obsidian://open?vault=${encodeURIComponent(VAULT_NAME)}&file=${obsidianFile}`;
 
     res.json({ success: true, file_path: filePath, obsidian_url: obsidianUrl, ai_summary: aiSummary, extracted_tasks: extractedTasks });
   } catch (err) {

@@ -7,8 +7,10 @@ services:
       - "127.0.0.1:3000:3000"
     volumes:
       - ${VAULT_PATH:-/Users/tao/ai/obsidian}:/vault
+      - ./public:/app/public
     environment:
       - VAULT_PATH=/vault
+      - VAULT_NAME=${VAULT_NAME:-obsidian}
       - AI_MODE=${AI_MODE:-none}
       - LM_STUDIO_URL=${LM_STUDIO_URL:-http://host.docker.internal:1234/v1}
       - LM_STUDIO_MODEL=${LM_STUDIO_MODEL:-gemma-4-12b-it}
