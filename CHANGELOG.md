@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## [v3.2.0] - 2026-06-06
+
+### 新機能
+- **クリップボード監視デーモン** (`scripts/clip-monitor.js`)
+  - CopyQ不要・pbpaste/osascriptベースのネイティブ実装（画面フラッシュなし）
+  - コピー即時 → `00_Inbox` 自動保存 → macOS通知
+  - 文字化け検出フィルター（置換文字率10%超はスキップ）
+  - 重複防止（3秒デバウンス）・短文/URLのみ/パスワード類は自動除外
+  - macOS起動時に自動スタート（`~/Library/LaunchAgents/com.aimemo.clipmonitor.plist`）
+- **クリップ履歴API** (`GET /api/clips`)
+  - `00_Inbox` の最新30件をプレビュー付きで返す
+- **ひらめきポスト UI 強化**
+  - クリップ履歴エリア追加（5秒自動更新・ライブドット表示）
+  - Local LLM選択肢を削除（当面Claude API / Rawのみ）
+
+### 変更
+- LM Studio依存を `.env` でコメントアウト（再有効化可能）
+- server.js バージョン表記 → `3.2.0`
+
+---
+
 ## [v3.1.3] - 2026-06-05
 
 ### 運用完了

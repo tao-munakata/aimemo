@@ -181,7 +181,30 @@ app.get('/api/recent', (req, res) => {
   }
 });
 
-app.get('/health', (req, res) => res.json({ status: 'ok', vault: VAULT_PATH, version: '3.1.0' }));
+app.get('/api/clips', (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 30;
+    const dir = path.join(VAULT_PATH, '00_Inbox');
+    if (!fs.existsSync(dir)) return res.json({ clips: [] });
+    const files = fs.readdirSync(dir)
+      .filter(f => f.endsWith('.md'))
+      .map(f => {
+        const full = path.join(dir, f);
+        const stat = fs.statSync(full);
+        const raw = fs.readFileSync(full, 'utf8');
+        const bodyMatch = raw.match(/---[\s\S]*?---\s*([\s\S]*)/);
+        const preview = (bodyMatch ? bodyMatch[1] : raw).trim().slice(0, 120).replace(/\n/g, ' ');
+        return { name: f, mtime: stat.mtime, preview };
+      })
+      .sort((a, b) => b.mtime - a.mtime)
+      .slice(0, limit);
+    res.json({ clips: files });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/health', (req, res) => res.json({ status: 'ok', vault: VAULT_PATH, version: '3.2.0' }));
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`AIメモ窓 v3.1.0 起動中: http://localhost:${PORT}`);
