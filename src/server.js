@@ -14,7 +14,7 @@ const LM_STUDIO_URL = process.env.LM_STUDIO_URL || 'http://host.docker.internal:
 const LM_STUDIO_MODEL = process.env.LM_STUDIO_MODEL || 'gemma-4-12b-it';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 
-const FOLDERS = ['00_Inbox', '10_Projects', '20_AI', '30_Business', '40_Meeting', '90_Archive'];
+const FOLDERS = ['00_Inbox', '10_Projects', '20_AI', '30_Business', '40_Meeting', '50_Personal', '90_Archive'];
 
 app.use(cors());
 app.use(express.json());
@@ -204,7 +204,162 @@ app.get('/api/clips', (req, res) => {
   }
 });
 
-app.get('/health', (req, res) => res.json({ status: 'ok', vault: VAULT_PATH, version: '3.2.0' }));
+app.get('/health', (req, res) => res.json({ status: 'ok', vault: VAULT_PATH, version: '3.3.0' }));
+
+// ---- Vault コマンド ----
+
+function classifyInboxFile(filename) {
+  if (/your_secret_here/.test(filename)) return 'DELETE';
+  if (/^[-\s]+\.md$/.test(filename)) return 'DELETE';
+  if (/週[\s　]予定|仁亭|つたや旅館/.test(filename)) return '40_Meeting';
+  if (/RIKB|鍵管理|neko-service|AffiBase|アフィリエイト|A8\.net|アクセストレード|FANZA|DMM|JAST|アダルトグッズ|防犯カメラ|現場調査|エアコン工事|Gaussian|見取り図|サステナブル建築|153\.126|kuneome/.test(filename)) return '10_Projects';
+  if (/車椅子|Magic Mobility|XT4|CR Expo|補装具|介護保険|展示会|中国国際福祉|4輪駆動型|特許|フルリモート|業務委託|圧倒的勝者|進捗管理ツール|VLプラン|チェックリスト/.test(filename)) return '30_Business';
+  if (/男性性|女性性|セックス|愛と性|愛花|はなさん|DIAさん|おはにゃん|タオルケット|おかあ|ブルックサイド|ケーキ|iCloud|温泉|なごみの湯|乳首|セフレ|人妻|気分転換|頭の切り替え|男は多く|はどめ規定|膣内射精|宗像|かのん|来週の|おはようございます|那須塩原/.test(filename)) return '50_Personal';
+  return '20_AI';
+}
+
+app.get('/api/vault/stats', (req, res) => {
+  try {
+    const stats = {};
+    for (const folder of FOLDERS) {
+      const dir = path.join(VAULT_PATH, folder);
+      stats[folder] = fs.existsSync(dir)
+        ? fs.readdirSync(dir).filter(f => f.endsWith('.md')).length
+        : 0;
+    }
+    res.json({ stats });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/vault/ingest', (req, res) => {
+  try {
+    const inboxDir = path.join(VAULT_PATH, '00_Inbox');
+    if (!fs.existsSync(inboxDir)) return res.json({ moved: {}, deleted: 0, total: 0 });
+
+    const files = fs.readdirSync(inboxDir).filter(f => f.endsWith('.md'));
+    const moved = { '10_Projects': 0, '20_AI': 0, '30_Business': 0, '40_Meeting': 0, '50_Personal': 0 };
+    let deleted = 0;
+
+    for (const file of files) {
+      const dest = classifyInboxFile(file);
+      const src = path.join(inboxDir, file);
+      if (dest === 'DELETE') {
+        fs.unlinkSync(src);
+        deleted++;
+      } else {
+        const destDir = path.join(VAULT_PATH, dest);
+        if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+        const destPath = path.join(destDir, file);
+        if (!fs.existsSync(destPath)) {
+          fs.renameSync(src, destPath);
+        } else {
+          fs.unlinkSync(src);
+        }
+        moved[dest] = (moved[dest] || 0) + 1;
+      }
+    }
+
+    const total = Object.values(moved).reduce((a, b) => a + b, 0) + deleted;
+    res.json({ success: true, moved, deleted, total });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/vault/brief', (req, res) => {
+  try {
+    const stats = {};
+    for (const folder of FOLDERS) {
+      const dir = path.join(VAULT_PATH, folder);
+      stats[folder] = fs.existsSync(dir)
+        ? fs.readdirSync(dir).filter(f => f.endsWith('.md')).length
+        : 0;
+    }
+
+    const recentFiles = [];
+    for (const folder of ['10_Projects', '20_AI', '30_Business']) {
+      const dir = path.join(VAULT_PATH, folder);
+      if (!fs.existsSync(dir)) continue;
+      fs.readdirSync(dir)
+        .filter(f => f.endsWith('.md'))
+        .forEach(f => {
+          const stat = fs.statSync(path.join(dir, f));
+          recentFiles.push({ name: f, folder, mtime: stat.mtime });
+        });
+    }
+    recentFiles.sort((a, b) => b.mtime - a.mtime);
+
+    const today = new Date().toISOString().split('T')[0];
+    const dailyExists = fs.existsSync(path.join(VAULT_PATH, `${today}.md`));
+
+    res.json({ stats, recentTop5: recentFiles.slice(0, 5), today, dailyExists });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/vault/review', (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const dailyPath = path.join(VAULT_PATH, `${today}.md`);
+    const existed = fs.existsSync(dailyPath);
+
+    if (!existed) {
+      const content = `---\ntitle: ${today} デイリーノート\ndate: ${today}\ntags: [daily, review]\nstatus: active\nlinks: []\n---\n\n## 今日のタスク\n\n- [ ] \n\n## メモ\n\n`;
+      fs.writeFileSync(dailyPath, content, 'utf8');
+    }
+
+    const stats = {};
+    for (const folder of FOLDERS) {
+      const dir = path.join(VAULT_PATH, folder);
+      stats[folder] = fs.existsSync(dir)
+        ? fs.readdirSync(dir).filter(f => f.endsWith('.md')).length
+        : 0;
+    }
+
+    res.json({ success: true, dailyCreated: !existed, dailyPath: `${today}.md`, stats });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/vault/lint', (req, res) => {
+  try {
+    const titleRe = /^title:\s*(.+)$/m;
+    const titleMap = {};
+    const duplicates = [];
+
+    for (const folder of FOLDERS.filter(f => f !== '00_Inbox' && f !== '90_Archive')) {
+      const dir = path.join(VAULT_PATH, folder);
+      if (!fs.existsSync(dir)) continue;
+      for (const file of fs.readdirSync(dir).filter(f => f.endsWith('.md'))) {
+        try {
+          const raw = fs.readFileSync(path.join(dir, file), 'utf8').slice(0, 300);
+          const m = raw.match(titleRe);
+          const title = m ? m[1].trim().slice(0, 40) : null;
+          if (!title) continue;
+          if (!titleMap[title]) { titleMap[title] = []; }
+          titleMap[title].push(`${folder}/${file}`);
+        } catch { /* skip */ }
+      }
+    }
+
+    for (const [title, files] of Object.entries(titleMap)) {
+      if (files.length >= 2) duplicates.push({ title, count: files.length, files });
+    }
+    duplicates.sort((a, b) => b.count - a.count);
+
+    const inboxCount = fs.existsSync(path.join(VAULT_PATH, '00_Inbox'))
+      ? fs.readdirSync(path.join(VAULT_PATH, '00_Inbox')).filter(f => f.endsWith('.md')).length
+      : 0;
+
+    res.json({ duplicateGroups: duplicates.length, duplicateFiles: duplicates.reduce((a, d) => a + d.count, 0), top10: duplicates.slice(0, 10), inboxCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`AIメモ窓 v3.1.0 起動中: http://localhost:${PORT}`);

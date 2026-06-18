@@ -80,6 +80,21 @@
     .info-row { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--text-dim); margin-top: 6px; }
     .info-row a { color: var(--accent2); text-decoration: none; }
     .info-row a:hover { text-decoration: underline; }
+
+    .vault-panel { display: flex; flex-direction: column; gap: 12px; }
+    .vault-stats { display: flex; flex-wrap: wrap; gap: 8px; }
+    .stat-chip { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; font-size: 12px; display: flex; flex-direction: column; gap: 2px; min-width: 80px; }
+    .stat-chip .stat-label { color: var(--text-dim); font-size: 10px; }
+    .stat-chip .stat-count { font-size: 18px; font-weight: 700; }
+    .stat-chip.inbox-chip .stat-count { color: var(--warn); }
+    .cmd-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+    .cmd-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all .2s; display: flex; align-items: center; gap: 6px; }
+    .cmd-btn:hover { border-color: var(--accent2); background: var(--accent2); }
+    .cmd-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .cmd-log { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 12px; font-family: monospace; min-height: 60px; max-height: 220px; overflow-y: auto; display: none; white-space: pre-wrap; line-height: 1.6; color: var(--text); }
+    .log-success { color: #4caf50; }
+    .log-warn { color: var(--warn); }
+    .log-error { color: var(--accent); }
   </style>
 </head>
 <body>
@@ -87,7 +102,7 @@
   <span>💡</span>
   <h1>ひらめきポスト</h1>
   <span class="badge">AI知識管理</span>
-  <span class="badge-ver">v3.1.0</span>
+  <span class="badge-ver">v3.3.0</span>
   <span style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim)">
     <span class="status-dot" id="statusDot"></span>
     <span id="statusText">接続中...</span>
@@ -95,6 +110,29 @@
 </header>
 
 <main>
+  <!-- Vault コマンドパネル -->
+  <div class="card vault-panel">
+    <div class="section-header">
+      <span>🗂</span>
+      <h2 style="font-size:14px;color:var(--text);font-weight:700">Vault コマンドセンター</h2>
+    </div>
+    <div class="vault-stats" id="vaultStats">
+      <div class="stat-chip inbox-chip"><span class="stat-label">Inbox</span><span class="stat-count" id="stat-inbox">…</span></div>
+      <div class="stat-chip"><span class="stat-label">Projects</span><span class="stat-count" id="stat-projects">…</span></div>
+      <div class="stat-chip"><span class="stat-label">AI</span><span class="stat-count" id="stat-ai">…</span></div>
+      <div class="stat-chip"><span class="stat-label">Business</span><span class="stat-count" id="stat-business">…</span></div>
+      <div class="stat-chip"><span class="stat-label">Meeting</span><span class="stat-count" id="stat-meeting">…</span></div>
+      <div class="stat-chip"><span class="stat-label">Personal</span><span class="stat-count" id="stat-personal">…</span></div>
+    </div>
+    <div class="cmd-buttons">
+      <button class="cmd-btn" onclick="runCmd('brief')">📄 brief</button>
+      <button class="cmd-btn" onclick="runCmd('ingest')">📥 ingest</button>
+      <button class="cmd-btn" onclick="runCmd('review')">📋 review</button>
+      <button class="cmd-btn" onclick="runCmd('lint')">🔍 lint</button>
+    </div>
+    <div class="cmd-log" id="cmdLog"></div>
+  </div>
+
   <div class="card">
     <div class="mode-tabs">
       <button class="mode-tab active" data-mode="quick">クイック入力</button>
@@ -344,8 +382,106 @@ async function loadClips() {
 checkHealth();
 loadRecent();
 loadClips();
+loadVaultStats();
 setInterval(checkHealth, 30000);
 setInterval(loadClips, 5000);
+setInterval(loadVaultStats, 60000);
+
+async function loadVaultStats() {
+  try {
+    const res = await fetch(`${API}/api/vault/stats`);
+    const data = await res.json();
+    const s = data.stats || {};
+    document.getElementById('stat-inbox').textContent    = s['00_Inbox']    ?? '—';
+    document.getElementById('stat-projects').textContent = s['10_Projects'] ?? '—';
+    document.getElementById('stat-ai').textContent       = s['20_AI']       ?? '—';
+    document.getElementById('stat-business').textContent = s['30_Business'] ?? '—';
+    document.getElementById('stat-meeting').textContent  = s['40_Meeting']  ?? '—';
+    document.getElementById('stat-personal').textContent = s['50_Personal'] ?? '—';
+    const inbox = s['00_Inbox'] || 0;
+    document.getElementById('stat-inbox').style.color = inbox > 0 ? 'var(--warn)' : '#4caf50';
+  } catch { /* ignore */ }
+}
+
+function logLine(msg, cls = '') {
+  const log = document.getElementById('cmdLog');
+  log.style.display = 'block';
+  const span = document.createElement('span');
+  if (cls) span.className = cls;
+  span.textContent = msg + '\n';
+  log.appendChild(span);
+  log.scrollTop = log.scrollHeight;
+}
+
+function logClear() {
+  const log = document.getElementById('cmdLog');
+  log.innerHTML = '';
+  log.style.display = 'block';
+}
+
+async function runCmd(cmd) {
+  logClear();
+  const btns = document.querySelectorAll('.cmd-btn');
+  btns.forEach(b => b.disabled = true);
+
+  const ts = new Date().toLocaleTimeString('ja-JP');
+  logLine(`[${ts}] ${cmd} 実行中…`);
+
+  try {
+    if (cmd === 'brief') {
+      const res = await fetch(`${API}/api/vault/brief`);
+      const d = await res.json();
+      const s = d.stats || {};
+      logLine('── Vault サマリー ──', 'log-success');
+      logLine(`📥 Inbox:    ${s['00_Inbox'] ?? 0} 件${s['00_Inbox'] > 0 ? ' ← ingest 推奨' : ' ✓ 空'}`);
+      logLine(`📁 Projects: ${s['10_Projects'] ?? 0} 件`);
+      logLine(`🤖 AI:       ${s['20_AI'] ?? 0} 件`);
+      logLine(`💼 Business: ${s['30_Business'] ?? 0} 件`);
+      logLine(`📅 Meeting:  ${s['40_Meeting'] ?? 0} 件`);
+      logLine(`👤 Personal: ${s['50_Personal'] ?? 0} 件`);
+      logLine(`🗓 デイリーノート(${d.today}): ${d.dailyExists ? '✓ あり' : '未作成 → review で生成'}`);
+      if (d.recentTop5?.length) {
+        logLine('\n── 最近の更新 ──', 'log-success');
+        d.recentTop5.forEach(f => logLine(`  [${f.folder}] ${f.name.slice(0, 50)}`));
+      }
+    } else if (cmd === 'ingest') {
+      const res = await fetch(`${API}/api/vault/ingest`, { method: 'POST' });
+      const d = await res.json();
+      if (!d.success) { logLine(`エラー: ${d.error}`, 'log-error'); return; }
+      logLine('── ingest 完了 ──', 'log-success');
+      logLine(`合計 ${d.total} 件処理`);
+      Object.entries(d.moved).forEach(([f, n]) => { if (n > 0) logLine(`  → ${f}: ${n} 件`); });
+      if (d.deleted > 0) logLine(`  🗑 削除(ゴミ): ${d.deleted} 件`, 'log-warn');
+      await loadVaultStats();
+      await loadClips();
+    } else if (cmd === 'review') {
+      const res = await fetch(`${API}/api/vault/review`, { method: 'POST' });
+      const d = await res.json();
+      if (!d.success) { logLine(`エラー: ${d.error}`, 'log-error'); return; }
+      logLine('── review 完了 ──', 'log-success');
+      logLine(d.dailyCreated ? `✅ デイリーノート作成: ${d.dailyPath}` : `📄 デイリーノート既存: ${d.dailyPath}`);
+      const s = d.stats || {};
+      logLine(`\n📥 Inbox: ${s['00_Inbox'] ?? 0} 件 ${s['00_Inbox'] > 0 ? '← ingest が必要です' : '✓'}`, s['00_Inbox'] > 0 ? 'log-warn' : '');
+      await loadVaultStats();
+    } else if (cmd === 'lint') {
+      const res = await fetch(`${API}/api/vault/lint`);
+      const d = await res.json();
+      logLine('── lint 結果 ──', 'log-success');
+      logLine(`📥 Inbox: ${d.inboxCount} 件`);
+      logLine(`🔁 重複グループ: ${d.duplicateGroups} 個 (${d.duplicateFiles} 件)`);
+      if (d.top10?.length) {
+        logLine('\n重複 TOP件:', 'log-warn');
+        d.top10.forEach(g => logLine(`  [${g.count}件] ${g.title}`));
+      } else {
+        logLine('重複なし ✓', 'log-success');
+      }
+    }
+  } catch (err) {
+    logLine(`エラー: ${err.message}`, 'log-error');
+  } finally {
+    btns.forEach(b => b.disabled = false);
+  }
+}
 </script>
 </body>
 </html>
