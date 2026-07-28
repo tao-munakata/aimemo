@@ -1,5 +1,43 @@
 # CHANGELOG
 
+## [v3.3.1] - 2026-07-28
+
+### バグ修正
+- **Vault側フォルダ構造変更（Personal Intelligence OS移行）への追従**
+  - Obsidian Vaultが `10_Projects/20_AI/30_Business/40_Meeting/50_Personal` から
+    `20_Projects/40_Notes/50_Sources/60_Decisions/70_Outputs` へ移行されたのに伴い、
+    `ingest`ボタンが旧フォルダ名を前提に動作し、移行後のVaultに旧フォルダを
+    再作成してしまっていた問題を修正
+  - `FOLDERS`定数・`classifyInboxFile`・stats/brief/lint/review 各エンドポイントの
+    参照先を新フォルダ名に更新
+  - `ingest`時にファイル移動だけでなく `type`/`created` frontmatterを機械的に
+    補完するよう変更（新Vaultのスキーマ検証を満たすため）。既存 `type` が
+    `inbox` の場合のみ仕分け先の`type`に昇格し、それ以外の正式な`type`は
+    上書きしない
+  - デイリーノート作成先を Vault 直下から `10_Daily/<year>/` に変更
+  - `public/index.html` のフォルダ選択肢・統計表示ラベルを新構造に合わせて更新
+- **`/api/memo`（none モード）のtitleがYAMLを壊す不具合を修正**
+  - `content.slice(0, 20)` を無加工で frontmatter の `title:` 行に埋め込んでいた
+    ため、クリップ内容の先頭20文字に改行やコロンが含まれると YAML パースが
+    壊れるノートが継続的に生成されていた
+  - 改行を除去しダブルクォートでエスケープする `yamlSafeScalar()` を追加して解消
+
+---
+
+## [v3.3.0] - 2026-06-18
+
+### 新機能
+- **Vault コマンドセンター**
+  - `server.js`: `/api/vault/stats`・`brief`・`ingest`・`review`・`lint` エンドポイント追加
+  - `index.html`: Vault コマンドパネル追加（フォルダ別ノート数 + 4コマンドボタン）
+  - ingest/lint/brief/review がブラウザから実行可能に
+
+### 変更
+- `FOLDERS` に `50_Personal` を追加
+- server.js バージョン表記 → `3.3.0`
+
+---
+
 ## [v3.2.0] - 2026-06-06
 
 ### 新機能

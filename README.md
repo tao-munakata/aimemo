@@ -72,7 +72,7 @@ PORT=3000
 docker compose up -d
 ```
 
-ブラウザで `http://localhost:3000` を開き、右上に **「オンライン (3.1.0)」** と表示されれば起動完了です。
+ブラウザで `http://localhost:3000` を開き、右上に **「オンライン (3.3.1)」** と表示されれば起動完了です。
 
 > ⚠️ **Docker Desktop を先に起動してください**  
 > Docker Desktop が起動していない状態で `docker compose up` を実行するとエラーになります。  

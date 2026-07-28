@@ -214,7 +214,7 @@ app.get('/api/clips', (req, res) => {
   }
 });
 
-app.get('/health', (req, res) => res.json({ status: 'ok', vault: VAULT_PATH, version: '3.3.0' }));
+app.get('/health', (req, res) => res.json({ status: 'ok', vault: VAULT_PATH, version: '3.3.1' }));
 
 // ---- Vault コマンド ----
 

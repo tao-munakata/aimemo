@@ -1,7 +1,7 @@
 {
   "name": "aimemo",
-  "version": "0.3.0",
-  "description": "AIメモ窓（ひらめきポスト）v3.2.0 - クリップ監視デーモン追加",
+  "version": "3.3.1",
+  "description": "AIメモ窓（ひらめきポスト）v3.3.1 - Personal Intelligence OS Vault構造対応",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
