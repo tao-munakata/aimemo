@@ -14,7 +14,7 @@ const LM_STUDIO_URL = process.env.LM_STUDIO_URL || 'http://host.docker.internal:
 const LM_STUDIO_MODEL = process.env.LM_STUDIO_MODEL || 'gemma-4-12b-it';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 
-const FOLDERS = ['00_Inbox', '10_Projects', '20_AI', '30_Business', '40_Meeting', '50_Personal', '90_Archive'];
+const FOLDERS = ['00_Inbox', '20_Projects', '40_Notes', '50_Sources', '60_Decisions', '70_Outputs', '90_Archive'];
 
 app.use(cors());
 app.use(express.json());
@@ -32,6 +32,8 @@ ${content}
 
 【出力形式】（frontmatterから始め、他の説明文は一切出力しないこと）
 ---
+type: inbox
+created: ${today}
 title: （10文字以内の日本語タイトル）
 tags: [推定タグ1, 推定タグ2]
 date: ${today}
@@ -140,7 +142,7 @@ app.post('/api/memo', async (req, res) => {
       aiSummary = 'Claude API で整形しました';
     } else {
       const extraTags = tags.length > 0 ? tags.join(', ') : 'メモ';
-      formattedContent = `---\ntitle: ${title || content.slice(0, 20)}\ntags: [${extraTags}]\ndate: ${today}\nstatus: draft\nlinks: []\n---\n\n${content}`;
+      formattedContent = `---\ntype: inbox\ncreated: ${today}\ntitle: ${title || content.slice(0, 20)}\ntags: [${extraTags}]\ndate: ${today}\nstatus: draft\nlinks: []\n---\n\n${content}`;
     }
 
     const finalTitle = title || extractTitleFromFormatted(formattedContent) || content.slice(0, 20);
@@ -208,14 +210,43 @@ app.get('/health', (req, res) => res.json({ status: 'ok', vault: VAULT_PATH, ver
 
 // ---- Vault コマンド ----
 
+// Personal Intelligence OS 移行（2026-07-28）後の新フォルダ構造に対応。
+// キーワード分類は内容の精査・重複確認を経ていないため、type は auto_* とし
+// vault_schema.yaml 側でも required は type/created のみに緩めてある。
+// 本分類（project/note/source/decision への正式変換）は obsidian-distill が担う。
 function classifyInboxFile(filename) {
-  if (/your_secret_here/.test(filename)) return 'DELETE';
-  if (/^[-\s]+\.md$/.test(filename)) return 'DELETE';
-  if (/週[\s　]予定|仁亭|つたや旅館/.test(filename)) return '40_Meeting';
-  if (/RIKB|鍵管理|neko-service|AffiBase|アフィリエイト|A8\.net|アクセストレード|FANZA|DMM|JAST|アダルトグッズ|防犯カメラ|現場調査|エアコン工事|Gaussian|見取り図|サステナブル建築|153\.126|kuneome/.test(filename)) return '10_Projects';
-  if (/車椅子|Magic Mobility|XT4|CR Expo|補装具|介護保険|展示会|中国国際福祉|4輪駆動型|特許|フルリモート|業務委託|圧倒的勝者|進捗管理ツール|VLプラン|チェックリスト/.test(filename)) return '30_Business';
-  if (/男性性|女性性|セックス|愛と性|愛花|はなさん|DIAさん|おはにゃん|タオルケット|おかあ|ブルックサイド|ケーキ|iCloud|温泉|なごみの湯|乳首|セフレ|人妻|気分転換|頭の切り替え|男は多く|はどめ規定|膣内射精|宗像|かのん|来週の|おはようございます|那須塩原/.test(filename)) return '50_Personal';
-  return '20_AI';
+  if (/your_secret_here/.test(filename)) return { action: 'DELETE' };
+  if (/^[-\s]+\.md$/.test(filename)) return { action: 'DELETE' };
+  if (/週[\s　]予定|仁亭|つたや旅館/.test(filename)) return { folder: '50_Sources', type: 'auto_meeting' };
+  if (/RIKB|鍵管理|neko-service|AffiBase|アフィリエイト|A8\.net|アクセストレード|FANZA|DMM|JAST|アダルトグッズ|防犯カメラ|現場調査|エアコン工事|Gaussian|見取り図|サステナブル建築|153\.126|kuneome/.test(filename)) return { folder: '20_Projects', type: 'auto_project' };
+  if (/車椅子|Magic Mobility|XT4|CR Expo|補装具|介護保険|展示会|中国国際福祉|4輪駆動型|特許|フルリモート|業務委託|圧倒的勝者|進捗管理ツール|VLプラン|チェックリスト/.test(filename)) return { folder: '20_Projects', type: 'auto_business' };
+  if (/男性性|女性性|セックス|愛と性|愛花|はなさん|DIAさん|おはにゃん|タオルケット|おかあ|ブルックサイド|ケーキ|iCloud|温泉|なごみの湯|乳首|セフレ|人妻|気分転換|頭の切り替え|男は多く|はどめ規定|膣内射精|宗像|かのん|来週の|おはようございます|那須塩原/.test(filename)) return { folder: '40_Notes', type: 'auto_personal' };
+  return { folder: '40_Notes', type: 'auto_ai' };
+}
+
+// frontmatterに type/created が無ければ機械的に補う（内容・他プロパティは無変更）。
+function ensureTypeCreated(content, type, todayFallback) {
+  const m = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
+  if (!m) {
+    return `---\ntype: ${type}\ncreated: ${todayFallback}\n---\n\n${content}`;
+  }
+  let fm = m[1];
+  const typeMatch = fm.match(/^type:\s*(\S+)\s*$/m);
+  const hasCreated = /^created:\s*\S/m.test(fm);
+
+  if (!typeMatch) {
+    fm = `type: ${type}\n${fm}`;
+  } else if (typeMatch[1] === 'inbox') {
+    // Inbox からカテゴリフォルダへ昇格する際は type を仕分け先に合わせて更新する。
+    // それ以外（既に project/note/source 等の正式 type）は上書きしない。
+    fm = fm.replace(/^type:\s*\S+\s*$/m, `type: ${type}`);
+  }
+  if (!hasCreated) {
+    const dateMatch = fm.match(/^date:\s*(.+)$/m);
+    fm = `created: ${dateMatch ? dateMatch[1].trim() : todayFallback}\n${fm}`;
+  }
+  const rest = content.slice(m[0].length);
+  return `---\n${fm}\n---\n${rest}`;
 }
 
 app.get('/api/vault/stats', (req, res) => {
@@ -239,21 +270,25 @@ app.post('/api/vault/ingest', (req, res) => {
     if (!fs.existsSync(inboxDir)) return res.json({ moved: {}, deleted: 0, total: 0 });
 
     const files = fs.readdirSync(inboxDir).filter(f => f.endsWith('.md'));
-    const moved = { '10_Projects': 0, '20_AI': 0, '30_Business': 0, '40_Meeting': 0, '50_Personal': 0 };
+    const moved = {};
     let deleted = 0;
+    const today = new Date().toISOString().split('T')[0];
 
     for (const file of files) {
-      const dest = classifyInboxFile(file);
+      const classification = classifyInboxFile(file);
       const src = path.join(inboxDir, file);
-      if (dest === 'DELETE') {
+      if (classification.action === 'DELETE') {
         fs.unlinkSync(src);
         deleted++;
       } else {
+        const { folder: dest, type } = classification;
         const destDir = path.join(VAULT_PATH, dest);
         if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
         const destPath = path.join(destDir, file);
         if (!fs.existsSync(destPath)) {
-          fs.renameSync(src, destPath);
+          const content = fs.readFileSync(src, 'utf8');
+          fs.writeFileSync(destPath, ensureTypeCreated(content, type, today), 'utf8');
+          fs.unlinkSync(src);
         } else {
           fs.unlinkSync(src);
         }
@@ -279,7 +314,7 @@ app.get('/api/vault/brief', (req, res) => {
     }
 
     const recentFiles = [];
-    for (const folder of ['10_Projects', '20_AI', '30_Business']) {
+    for (const folder of ['20_Projects', '40_Notes', '50_Sources']) {
       const dir = path.join(VAULT_PATH, folder);
       if (!fs.existsSync(dir)) continue;
       fs.readdirSync(dir)
@@ -292,7 +327,7 @@ app.get('/api/vault/brief', (req, res) => {
     recentFiles.sort((a, b) => b.mtime - a.mtime);
 
     const today = new Date().toISOString().split('T')[0];
-    const dailyExists = fs.existsSync(path.join(VAULT_PATH, `${today}.md`));
+    const dailyExists = fs.existsSync(path.join(VAULT_PATH, '10_Daily', today.slice(0, 4), `${today}.md`));
 
     res.json({ stats, recentTop5: recentFiles.slice(0, 5), today, dailyExists });
   } catch (err) {
@@ -303,11 +338,14 @@ app.get('/api/vault/brief', (req, res) => {
 app.post('/api/vault/review', (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
-    const dailyPath = path.join(VAULT_PATH, `${today}.md`);
+    const year = today.slice(0, 4);
+    const dailyDir = path.join(VAULT_PATH, '10_Daily', year);
+    const dailyPath = path.join(dailyDir, `${today}.md`);
     const existed = fs.existsSync(dailyPath);
 
     if (!existed) {
-      const content = `---\ntitle: ${today} デイリーノート\ndate: ${today}\ntags: [daily, review]\nstatus: active\nlinks: []\n---\n\n## 今日のタスク\n\n- [ ] \n\n## メモ\n\n`;
+      if (!fs.existsSync(dailyDir)) fs.mkdirSync(dailyDir, { recursive: true });
+      const content = `---\ntype: daily\ncreated: ${today}\ntitle: ${today} デイリーノート\ndate: ${today}\ntags: [daily, review]\nstatus: active\nlinks: []\n---\n\n## 今日のタスク\n\n- [ ] \n\n## メモ\n\n`;
       fs.writeFileSync(dailyPath, content, 'utf8');
     }
 
@@ -319,7 +357,7 @@ app.post('/api/vault/review', (req, res) => {
         : 0;
     }
 
-    res.json({ success: true, dailyCreated: !existed, dailyPath: `${today}.md`, stats });
+    res.json({ success: true, dailyCreated: !existed, dailyPath: `10_Daily/${year}/${today}.md`, stats });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

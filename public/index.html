@@ -119,10 +119,10 @@
     <div class="vault-stats" id="vaultStats">
       <div class="stat-chip inbox-chip"><span class="stat-label">Inbox</span><span class="stat-count" id="stat-inbox">…</span></div>
       <div class="stat-chip"><span class="stat-label">Projects</span><span class="stat-count" id="stat-projects">…</span></div>
-      <div class="stat-chip"><span class="stat-label">AI</span><span class="stat-count" id="stat-ai">…</span></div>
-      <div class="stat-chip"><span class="stat-label">Business</span><span class="stat-count" id="stat-business">…</span></div>
-      <div class="stat-chip"><span class="stat-label">Meeting</span><span class="stat-count" id="stat-meeting">…</span></div>
-      <div class="stat-chip"><span class="stat-label">Personal</span><span class="stat-count" id="stat-personal">…</span></div>
+      <div class="stat-chip"><span class="stat-label">Notes</span><span class="stat-count" id="stat-ai">…</span></div>
+      <div class="stat-chip"><span class="stat-label">Sources</span><span class="stat-count" id="stat-business">…</span></div>
+      <div class="stat-chip"><span class="stat-label">Decisions</span><span class="stat-count" id="stat-meeting">…</span></div>
+      <div class="stat-chip"><span class="stat-label">Outputs</span><span class="stat-count" id="stat-personal">…</span></div>
     </div>
     <div class="cmd-buttons">
       <button class="cmd-btn" onclick="runCmd('brief')">📄 brief</button>
@@ -160,10 +160,10 @@
         <label>保存先</label>
         <select id="folderSelect">
           <option value="00_Inbox">00_Inbox</option>
-          <option value="10_Projects">10_Projects</option>
-          <option value="20_AI">20_AI</option>
-          <option value="30_Business">30_Business</option>
-          <option value="40_Meeting">40_Meeting</option>
+          <option value="20_Projects">20_Projects</option>
+          <option value="40_Notes">40_Notes</option>
+          <option value="50_Sources">50_Sources</option>
+          <option value="60_Decisions">60_Decisions</option>
         </select>
       </div>
       <div class="option-group">
@@ -392,12 +392,12 @@ async function loadVaultStats() {
     const res = await fetch(`${API}/api/vault/stats`);
     const data = await res.json();
     const s = data.stats || {};
-    document.getElementById('stat-inbox').textContent    = s['00_Inbox']    ?? '—';
-    document.getElementById('stat-projects').textContent = s['10_Projects'] ?? '—';
-    document.getElementById('stat-ai').textContent       = s['20_AI']       ?? '—';
-    document.getElementById('stat-business').textContent = s['30_Business'] ?? '—';
-    document.getElementById('stat-meeting').textContent  = s['40_Meeting']  ?? '—';
-    document.getElementById('stat-personal').textContent = s['50_Personal'] ?? '—';
+    document.getElementById('stat-inbox').textContent    = s['00_Inbox']     ?? '—';
+    document.getElementById('stat-projects').textContent = s['20_Projects']  ?? '—';
+    document.getElementById('stat-ai').textContent       = s['40_Notes']     ?? '—';
+    document.getElementById('stat-business').textContent = s['50_Sources']   ?? '—';
+    document.getElementById('stat-meeting').textContent  = s['60_Decisions'] ?? '—';
+    document.getElementById('stat-personal').textContent = s['70_Outputs']   ?? '—';
     const inbox = s['00_Inbox'] || 0;
     document.getElementById('stat-inbox').style.color = inbox > 0 ? 'var(--warn)' : '#4caf50';
   } catch { /* ignore */ }
@@ -433,12 +433,12 @@ async function runCmd(cmd) {
       const d = await res.json();
       const s = d.stats || {};
       logLine('── Vault サマリー ──', 'log-success');
-      logLine(`📥 Inbox:    ${s['00_Inbox'] ?? 0} 件${s['00_Inbox'] > 0 ? ' ← ingest 推奨' : ' ✓ 空'}`);
-      logLine(`📁 Projects: ${s['10_Projects'] ?? 0} 件`);
-      logLine(`🤖 AI:       ${s['20_AI'] ?? 0} 件`);
-      logLine(`💼 Business: ${s['30_Business'] ?? 0} 件`);
-      logLine(`📅 Meeting:  ${s['40_Meeting'] ?? 0} 件`);
-      logLine(`👤 Personal: ${s['50_Personal'] ?? 0} 件`);
+      logLine(`📥 Inbox:     ${s['00_Inbox'] ?? 0} 件${s['00_Inbox'] > 0 ? ' ← ingest 推奨' : ' ✓ 空'}`);
+      logLine(`📁 Projects:  ${s['20_Projects'] ?? 0} 件`);
+      logLine(`🧠 Notes:     ${s['40_Notes'] ?? 0} 件`);
+      logLine(`📚 Sources:   ${s['50_Sources'] ?? 0} 件`);
+      logLine(`⚖️ Decisions: ${s['60_Decisions'] ?? 0} 件`);
+      logLine(`📦 Outputs:   ${s['70_Outputs'] ?? 0} 件`);
       logLine(`🗓 デイリーノート(${d.today}): ${d.dailyExists ? '✓ あり' : '未作成 → review で生成'}`);
       if (d.recentTop5?.length) {
         logLine('\n── 最近の更新 ──', 'log-success');
