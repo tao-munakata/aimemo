@@ -110,6 +110,13 @@ function saveToVault(folder, title, content) {
   return { filePath: path.join(dir, fileName), fileName };
 }
 
+// タイトルはクリップボード先頭文字を機械的に切り出すため、改行や ":" 等
+// YAMLを壊す文字を含みうる。frontmatterに埋め込む前に必ずこれを通す。
+function yamlSafeScalar(s) {
+  const oneLine = s.replace(/\r?\n/g, ' ').trim();
+  return `"${oneLine.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
 function extractTitleFromFormatted(text) {
   const m = text.match(/title:\s*(.+)/);
   return m ? m[1].trim().replace(/^["']|["']$/g, '') : null;
@@ -142,7 +149,8 @@ app.post('/api/memo', async (req, res) => {
       aiSummary = 'Claude API で整形しました';
     } else {
       const extraTags = tags.length > 0 ? tags.join(', ') : 'メモ';
-      formattedContent = `---\ntype: inbox\ncreated: ${today}\ntitle: ${title || content.slice(0, 20)}\ntags: [${extraTags}]\ndate: ${today}\nstatus: draft\nlinks: []\n---\n\n${content}`;
+      const rawTitle = title || content.slice(0, 20);
+      formattedContent = `---\ntype: inbox\ncreated: ${today}\ntitle: ${yamlSafeScalar(rawTitle)}\ntags: [${extraTags}]\ndate: ${today}\nstatus: draft\nlinks: []\n---\n\n${content}`;
     }
 
     const finalTitle = title || extractTitleFromFormatted(formattedContent) || content.slice(0, 20);
